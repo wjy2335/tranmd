@@ -1,6 +1,6 @@
 # TranMD
 
-Copy note content as clean, standard Markdown — stripping Obsidian-specific syntax so it renders correctly in **MarginNote 4** and any other Markdown app.
+Copy notes or a selection as clean, standard Markdown — stripping wikilinks, embeds, callouts, frontmatter, comments, tags, highlights and footnotes so it renders correctly in **MarginNote 4** and any other Markdown app.
 
 ## Why TranMD?
 
