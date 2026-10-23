@@ -2,3 +2,7 @@ node_modules/
 *.map
 test/_test.cjs
 .DS_Store
+
+# 本地交接/协作文档，含本机路径与个人偏好，不入库
+HANDOFF.md
+CONTRIBUTING.md
