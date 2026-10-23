@@ -1,6 +1,6 @@
 {
   "name": "tranmd",
-  "version": "0.1.4",
+  "version": "0.1.5",
   "description": "Copy Obsidian notes as MarginNote-friendly Markdown",
   "main": "main.js",
   "scripts": {
@@ -12,7 +12,6 @@
   "license": "MIT",
   "devDependencies": {
     "@types/node": "^20.11.0",
-    "builtin-modules": "^3.3.0",
     "esbuild": "^0.20.2",
     "obsidian": "latest",
     "typescript": "^5.4.5"

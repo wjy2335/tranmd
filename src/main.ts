@@ -10,18 +10,37 @@ import {
 } from "obsidian";
 import { toMarginNoteMarkdown } from "./transform";
 
+/** 移动端 Capacitor 剪贴板的最小类型定义（避免 any）。 */
+interface CapacitorClipboard {
+  write?: (options: { string: string }) => Promise<void>;
+}
+interface CapacitorGlobal {
+  Plugins?: {
+    Clipboard?: CapacitorClipboard;
+  };
+}
+
+declare global {
+  interface Window {
+    Capacitor?: CapacitorGlobal;
+  }
+}
+
 /** 给可能挂起的剪贴板调用加超时，避免 await 永久卡住导致「没反应」。 */
 function withTimeout<T>(p: Promise<T>, ms: number): Promise<T> {
   return new Promise<T>((resolve, reject) => {
-    const timer = setTimeout(() => reject(new Error("clipboard timeout")), ms);
+    const timer = window.setTimeout(
+      () => reject(new Error("clipboard timeout")),
+      ms
+    );
     p.then(
       (v) => {
-        clearTimeout(timer);
+        window.clearTimeout(timer);
         resolve(v);
       },
       (e) => {
-        clearTimeout(timer);
-        reject(e);
+        window.clearTimeout(timer);
+        reject(e instanceof Error ? e : new Error(String(e)));
       }
     );
   });
@@ -38,7 +57,7 @@ export default class TranMDPlugin extends Plugin {
         const selected = this.getSelectedText();
         const source = selected || (await this.getActiveContent());
         if (source == null) return;
-        this.copyAndNotify(
+        await this.copyAndNotify(
           toMarginNoteMarkdown(source),
           selected ? "已复制选中内容" : "未选中，已复制整篇笔记"
         );
@@ -52,7 +71,10 @@ export default class TranMDPlugin extends Plugin {
       callback: async () => {
         const content = await this.getActiveContent();
         if (content == null) return;
-        this.copyAndNotify(toMarginNoteMarkdown(content), "已复制整篇笔记");
+        await this.copyAndNotify(
+          toMarginNoteMarkdown(content),
+          "已复制整篇笔记"
+        );
       },
     });
 
@@ -63,7 +85,10 @@ export default class TranMDPlugin extends Plugin {
       async () => {
         const content = await this.getActiveContent();
         if (content == null) return;
-        this.copyAndNotify(toMarginNoteMarkdown(content), "已复制整篇笔记");
+        await this.copyAndNotify(
+          toMarginNoteMarkdown(content),
+          "已复制整篇笔记"
+        );
       }
     );
 
@@ -77,7 +102,7 @@ export default class TranMDPlugin extends Plugin {
             .setIcon("clipboard-copy")
             .onClick(async () => {
               const content = await this.app.vault.cachedRead(file);
-              this.copyAndNotify(
+              await this.copyAndNotify(
                 toMarginNoteMarkdown(content),
                 `已复制「${file.basename}」`
               );
@@ -96,7 +121,7 @@ export default class TranMDPlugin extends Plugin {
             .onClick(() => {
               const selection = editor.getSelection();
               const source = selection || editor.getValue();
-              this.copyAndNotify(
+              void this.copyAndNotify(
                 toMarginNoteMarkdown(source),
                 selection ? "已复制选中内容" : "未选中，已复制整篇笔记"
               );
@@ -124,7 +149,7 @@ export default class TranMDPlugin extends Plugin {
     }
 
     const file = this.app.workspace.getActiveFile() ?? view?.file ?? null;
-    if (file) return await this.app.vault.cachedRead(file);
+    if (file) return this.app.vault.cachedRead(file);
 
     new Notice("没有打开的笔记");
     return null;
@@ -134,7 +159,7 @@ export default class TranMDPlugin extends Plugin {
     try {
       await this.copyText(text);
       new Notice(message + " ✅");
-    } catch (e) {
+    } catch {
       new Notice("自动复制失败，已打开手动复制窗口");
       new FallbackModal(this.app, text).open();
     }
@@ -142,12 +167,12 @@ export default class TranMDPlugin extends Plugin {
 
   private async copyText(text: string) {
     // 1) 移动端原生剪贴板（桌面若存在但不可用，靠超时跳过，避免卡死）
-    const cap = (window as any).Capacitor;
-    if (cap?.Plugins?.Clipboard?.write) {
+    const clipboardWrite = window.Capacitor?.Plugins?.Clipboard?.write;
+    if (clipboardWrite) {
       try {
-        await withTimeout(cap.Plugins.Clipboard.write({ string: text }), 1500);
+        await withTimeout(clipboardWrite({ string: text }), 1500);
         return;
-      } catch (e) {
+      } catch {
         /* 超时或失败，继续 */
       }
     }
@@ -157,7 +182,7 @@ export default class TranMDPlugin extends Plugin {
       try {
         await withTimeout(navigator.clipboard.writeText(text), 1500);
         return;
-      } catch (e) {
+      } catch {
         /* 超时或失败，继续 */
       }
     }
@@ -170,17 +195,15 @@ export default class TranMDPlugin extends Plugin {
 
   private execCopy(text: string): boolean {
     try {
-      const el = document.createElement("textarea");
+      const el = document.body.createEl("textarea");
       el.value = text;
-      el.style.position = "fixed";
-      el.style.opacity = "0";
-      document.body.appendChild(el);
+      el.setCssStyles({ position: "fixed", opacity: "0" });
       el.focus();
       el.select();
-      const ok = document.execCommand && document.execCommand("copy");
-      document.body.removeChild(el);
-      return !!ok;
-    } catch (e) {
+      const ok = document.execCommand("copy");
+      el.remove();
+      return ok;
+    } catch {
       return false;
     }
   }
@@ -200,9 +223,11 @@ class FallbackModal extends Modal {
     });
     const ta = contentEl.createEl("textarea");
     ta.value = this.text;
-    ta.style.width = "100%";
-    ta.style.height = "50vh";
-    ta.style.fontFamily = "monospace";
+    ta.setCssStyles({
+      width: "100%",
+      height: "50vh",
+      fontFamily: "monospace",
+    });
     ta.addEventListener("focus", () => ta.select());
     ta.focus();
     ta.select();

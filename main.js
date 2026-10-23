@@ -36,11 +36,11 @@ function toMarginNoteMarkdown(raw) {
   s = maskProtected(s, store);
   s = s.replace(/%%[\s\S]*?%%/g, "");
   s = s.replace(
-    /!\[\[([^\[\]]+)\]\]/g,
+    /!\[\[([^[\]]+)\]\]/g,
     (_m, inner) => resolveWikiText(inner, true)
   );
   s = s.replace(
-    /\[\[([^\[\]]+)\]\]/g,
+    /\[\[([^[\]]+)\]\]/g,
     (_m, inner) => resolveWikiText(inner, false)
   );
   s = s.replace(/^((?:\s*>+\s*)+)\[![^\]]*\]\s*[+-]?\s*/gm, "$1");
@@ -75,7 +75,7 @@ function maskProtected(s, store) {
   ];
   for (const re of patterns) {
     s = s.replace(re, (m) => {
-      const token = "\0TMD" + store.length + "\0";
+      const token = "\uE000TMD" + store.length + "\uE001";
       store.push(m);
       return token;
     });
@@ -83,7 +83,7 @@ function maskProtected(s, store) {
   return s;
 }
 function restoreProtected(s, store) {
-  return s.replace(/\u0000TMD(\d+)\u0000/g, (_m, i) => store[Number(i)]);
+  return s.replace(/\uE000TMD(\d+)\uE001/g, (_m, i) => store[Number(i)]);
 }
 function resolveWikiText(inner, isEmbed) {
   let target = inner.trim();
@@ -122,15 +122,18 @@ function stripInlineTags(s) {
 // src/main.ts
 function withTimeout(p, ms) {
   return new Promise((resolve, reject) => {
-    const timer = setTimeout(() => reject(new Error("clipboard timeout")), ms);
+    const timer = window.setTimeout(
+      () => reject(new Error("clipboard timeout")),
+      ms
+    );
     p.then(
       (v) => {
-        clearTimeout(timer);
+        window.clearTimeout(timer);
         resolve(v);
       },
       (e) => {
-        clearTimeout(timer);
-        reject(e);
+        window.clearTimeout(timer);
+        reject(e instanceof Error ? e : new Error(String(e)));
       }
     );
   });
@@ -145,7 +148,7 @@ var TranMDPlugin = class extends import_obsidian.Plugin {
         const source = selected || await this.getActiveContent();
         if (source == null)
           return;
-        this.copyAndNotify(
+        await this.copyAndNotify(
           toMarginNoteMarkdown(source),
           selected ? "\u5DF2\u590D\u5236\u9009\u4E2D\u5185\u5BB9" : "\u672A\u9009\u4E2D\uFF0C\u5DF2\u590D\u5236\u6574\u7BC7\u7B14\u8BB0"
         );
@@ -158,7 +161,10 @@ var TranMDPlugin = class extends import_obsidian.Plugin {
         const content = await this.getActiveContent();
         if (content == null)
           return;
-        this.copyAndNotify(toMarginNoteMarkdown(content), "\u5DF2\u590D\u5236\u6574\u7BC7\u7B14\u8BB0");
+        await this.copyAndNotify(
+          toMarginNoteMarkdown(content),
+          "\u5DF2\u590D\u5236\u6574\u7BC7\u7B14\u8BB0"
+        );
       }
     });
     this.addRibbonIcon(
@@ -168,7 +174,10 @@ var TranMDPlugin = class extends import_obsidian.Plugin {
         const content = await this.getActiveContent();
         if (content == null)
           return;
-        this.copyAndNotify(toMarginNoteMarkdown(content), "\u5DF2\u590D\u5236\u6574\u7BC7\u7B14\u8BB0");
+        await this.copyAndNotify(
+          toMarginNoteMarkdown(content),
+          "\u5DF2\u590D\u5236\u6574\u7BC7\u7B14\u8BB0"
+        );
       }
     );
     this.registerEvent(
@@ -178,7 +187,7 @@ var TranMDPlugin = class extends import_obsidian.Plugin {
         menu.addItem((item) => {
           item.setTitle("\u590D\u5236\u4E3A MarginNote Markdown").setIcon("clipboard-copy").onClick(async () => {
             const content = await this.app.vault.cachedRead(file);
-            this.copyAndNotify(
+            await this.copyAndNotify(
               toMarginNoteMarkdown(content),
               `\u5DF2\u590D\u5236\u300C${file.basename}\u300D`
             );
@@ -192,7 +201,7 @@ var TranMDPlugin = class extends import_obsidian.Plugin {
           item.setTitle("\u590D\u5236\u4E3A MarginNote Markdown").setIcon("clipboard-copy").onClick(() => {
             const selection = editor.getSelection();
             const source = selection || editor.getValue();
-            this.copyAndNotify(
+            void this.copyAndNotify(
               toMarginNoteMarkdown(source),
               selection ? "\u5DF2\u590D\u5236\u9009\u4E2D\u5185\u5BB9" : "\u672A\u9009\u4E2D\uFF0C\u5DF2\u590D\u5236\u6574\u7BC7\u7B14\u8BB0"
             );
@@ -217,7 +226,7 @@ var TranMDPlugin = class extends import_obsidian.Plugin {
     }
     const file = this.app.workspace.getActiveFile() ?? view?.file ?? null;
     if (file)
-      return await this.app.vault.cachedRead(file);
+      return this.app.vault.cachedRead(file);
     new import_obsidian.Notice("\u6CA1\u6709\u6253\u5F00\u7684\u7B14\u8BB0");
     return null;
   }
@@ -225,25 +234,25 @@ var TranMDPlugin = class extends import_obsidian.Plugin {
     try {
       await this.copyText(text);
       new import_obsidian.Notice(message + " \u2705");
-    } catch (e) {
+    } catch {
       new import_obsidian.Notice("\u81EA\u52A8\u590D\u5236\u5931\u8D25\uFF0C\u5DF2\u6253\u5F00\u624B\u52A8\u590D\u5236\u7A97\u53E3");
       new FallbackModal(this.app, text).open();
     }
   }
   async copyText(text) {
-    const cap = window.Capacitor;
-    if (cap?.Plugins?.Clipboard?.write) {
+    const clipboardWrite = window.Capacitor?.Plugins?.Clipboard?.write;
+    if (clipboardWrite) {
       try {
-        await withTimeout(cap.Plugins.Clipboard.write({ string: text }), 1500);
+        await withTimeout(clipboardWrite({ string: text }), 1500);
         return;
-      } catch (e) {
+      } catch {
       }
     }
     if (navigator?.clipboard?.writeText) {
       try {
         await withTimeout(navigator.clipboard.writeText(text), 1500);
         return;
-      } catch (e) {
+      } catch {
       }
     }
     if (this.execCopy(text))
@@ -252,17 +261,15 @@ var TranMDPlugin = class extends import_obsidian.Plugin {
   }
   execCopy(text) {
     try {
-      const el = document.createElement("textarea");
+      const el = document.body.createEl("textarea");
       el.value = text;
-      el.style.position = "fixed";
-      el.style.opacity = "0";
-      document.body.appendChild(el);
+      el.setCssStyles({ position: "fixed", opacity: "0" });
       el.focus();
       el.select();
-      const ok = document.execCommand && document.execCommand("copy");
-      document.body.removeChild(el);
-      return !!ok;
-    } catch (e) {
+      const ok = document.execCommand("copy");
+      el.remove();
+      return ok;
+    } catch {
       return false;
     }
   }
@@ -280,9 +287,11 @@ var FallbackModal = class extends import_obsidian.Modal {
     });
     const ta = contentEl.createEl("textarea");
     ta.value = this.text;
-    ta.style.width = "100%";
-    ta.style.height = "50vh";
-    ta.style.fontFamily = "monospace";
+    ta.setCssStyles({
+      width: "100%",
+      height: "50vh",
+      fontFamily: "monospace"
+    });
     ta.addEventListener("focus", () => ta.select());
     ta.focus();
     ta.select();

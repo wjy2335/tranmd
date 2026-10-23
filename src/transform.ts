@@ -29,12 +29,12 @@ export function toMarginNoteMarkdown(raw: string): string {
   s = s.replace(/%%[\s\S]*?%%/g, "");
 
   // 4. 嵌入 ![[...]]（必须在普通链接之前处理）
-  s = s.replace(/!\[\[([^\[\]]+)\]\]/g, (_m, inner: string) =>
+  s = s.replace(/!\[\[([^[\]]+)\]\]/g, (_m, inner: string) =>
     resolveWikiText(inner, true)
   );
 
   // 5. 双向链接 [[...]]
-  s = s.replace(/\[\[([^\[\]]+)\]\]/g, (_m, inner: string) =>
+  s = s.replace(/\[\[([^[\]]+)\]\]/g, (_m, inner: string) =>
     resolveWikiText(inner, false)
   );
 
@@ -83,7 +83,7 @@ function maskProtected(s: string, store: string[]): string {
   ];
   for (const re of patterns) {
     s = s.replace(re, (m) => {
-      const token = "\u0000TMD" + store.length + "\u0000";
+      const token = "\uE000TMD" + store.length + "\uE001";
       store.push(m);
       return token;
     });
@@ -92,7 +92,7 @@ function maskProtected(s: string, store: string[]): string {
 }
 
 function restoreProtected(s: string, store: string[]): string {
-  return s.replace(/\u0000TMD(\d+)\u0000/g, (_m, i) => store[Number(i)]);
+  return s.replace(/\uE000TMD(\d+)\uE001/g, (_m, i) => store[Number(i)]);
 }
 
 function resolveWikiText(inner: string, isEmbed: boolean): string {
