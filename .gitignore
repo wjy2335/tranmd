@@ -1,0 +1,4 @@
+node_modules/
+*.map
+test/_test.cjs
+.DS_Store

@@ -1,0 +1,9 @@
+{
+  "id": "tranmd",
+  "name": "TranMD",
+  "version": "0.1.3",
+  "minAppVersion": "1.0.0",
+  "description": "Copy note content as clean Markdown by stripping Obsidian-specific syntax, ready for MarginNote 4 and other Markdown apps.",
+  "author": "tranmd",
+  "isDesktopOnly": false
+}

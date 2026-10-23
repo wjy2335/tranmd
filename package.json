@@ -1,0 +1,20 @@
+{
+  "name": "tranmd",
+  "version": "0.1.3",
+  "description": "Copy Obsidian notes as MarginNote-friendly Markdown",
+  "main": "main.js",
+  "scripts": {
+    "dev": "node esbuild.config.mjs",
+    "build": "tsc -noEmit -skipLibCheck && node esbuild.config.mjs production",
+    "test": "esbuild test/transform.test.ts --bundle --platform=node --format=cjs --outfile=test/_test.cjs && node test/_test.cjs"
+  },
+  "keywords": ["obsidian", "marginnote", "markdown"],
+  "license": "MIT",
+  "devDependencies": {
+    "@types/node": "^20.11.0",
+    "builtin-modules": "^3.3.0",
+    "esbuild": "^0.20.2",
+    "obsidian": "latest",
+    "typescript": "^5.4.5"
+  }
+}
